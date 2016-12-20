@@ -14,13 +14,6 @@
 
 (def ere (s/conform :swagger/definition
            (yaml/parse-string (slurp "test/oasiege/data/hummus.yaml"))))
-(s/def ::hummus (s/keys :req [::path ::method ::parameters]))
-(s/def ::path #{"/label/{key}" "/number/{key}" "/other-number/{key}" "/event-types/{key}/events"})
-(s/def ::method #{:get :post :delete})
-(s/def ::parameters (s/keys :req [::key]))
-(s/def ::key (s/keys :req [::value ::in]))
-(s/def ::value string?)
-(s/def ::in #{:path})
 ;;;; (gen/sample (s/gen ::hummus))
 
 (def generated-request-record ;;; example
@@ -38,8 +31,8 @@
     :path (update request ::path
             (fn [p]
               #_(prn {:p p :param-name param-name :value value :result (clojure.string/replace p
-                                                                       (str "{" (name param-name) "}")
-                                                                       value)})
+                                                                         (str "{" (name param-name) "}")
+                                                                         value)})
               (clojure.string/replace p
                 (str "{" (name param-name) "}")
                 value)))))
@@ -49,16 +42,31 @@
     (dissoc generated-request ::parameters)
     (::parameters generated-request)))
 
+(defn declare-spec [prefix key spec]
+  (let [spec-key (keyword (namespace prefix)
+                   (str (name prefix) "." (name key)))]
+    (eval `(s/def ~spec-key ~spec))))
+
+(defn declare-hummus-top! [prefix top-keys]
+  (declare-spec prefix :api `(s/keys :req [~@top-keys]))
+  (s/def ::path #{"/label/{key}" "/number/{key}" "/other-number/{key}" "/event-types/{key}/events"})
+  (s/def ::method #{:get :post :delete})
+  (s/def ::parameters (s/keys :req [::key]))
+  (s/def ::key (s/keys :req [::value ::in]))
+  (s/def ::value string?)
+  (s/def ::in #{:path}))
+
 (defn proof-of-concept-run []
   (let [definition (s/conform :swagger/definition
                      (yaml/parse-string (slurp "test/oasiege/data/hummus.yaml")))]
     ;; Can parse OpenAPI definition
-    (prn definition)
-    ;; Generate request records from hand-crafted specs corresponding to the definition
-    (let [generated-records (gen/sample (s/gen ::hummus) 10)]
-      (prn generated-records)
-      ;; Embed parameters to make generated records suitable for HTTP calls
-      (prn (map prepare-request generated-records)))))
+    (prn definition))
+  (declare-hummus-top! ::hummus #{::path ::method ::parameters})
+  ;; Generate request records from hand-crafted specs corresponding to the definition
+  (let [generated-records (gen/sample (s/gen ::hummus.api) 10)]
+    (prn generated-records)
+    ;; Embed parameters to make generated records suitable for HTTP calls
+    (prn (map prepare-request generated-records))))
 
 (comment
   (-> ere
