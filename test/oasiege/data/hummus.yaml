@@ -91,7 +91,7 @@ paths:
           type: string
           required: true
           description: Name of the event type.
-          pattern: '(?i)^\w+\.e([0-9a-f]+)_.*$'
+          pattern: '^\w+\.e([0-9a-fA-F]+)_.*$'
         - name: events
           in: body
           schema:

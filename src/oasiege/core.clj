@@ -3,6 +3,7 @@
             [swagger.reader.json :as json]
             [swagger.reader.yaml :as yaml]
             [clojure.spec.gen :as gen]
+            [miner.strgen :as sg]
             swagger.spec
             clojure.string))
 
@@ -16,23 +17,35 @@
     (str (name prefix) "." (name key))))
 
 
+(defn regexp-spec [pattern]
+  (let [regexp (re-pattern pattern)]
+    `(s/with-gen (s/and string? #(re-matches ~regexp %))
+      #(sg/string-generator ~regexp))))
+
+
+(defn value-spec [{type-name :type pattern :pattern schema :schema
+                   :as desc}]
+  (cond
+    pattern (regexp-spec pattern)
+    schema `string? ;;;; STUB ;;;; FIXME Support JSON-schemed values
+    (= type-name "integer") `integer?
+    (= type-name "string") `string?
+    true (throw (ex-info "Cannot create spec for this value."
+                  {:type ::error
+                   :description desc}))))
+
+
 (defn request-spec [api]
-  ;; It is possible to use s/def-impl do add definitions and avoid macroses
+  ;; It is possible to use s/def-impl do add apec definitions while avoiding macroses
   ;; but then spec's explanation functions that show predicates' source
   ;; would not work correctly.
   ;; Explanation is not necessary for generation but helps with debugging.
   (let [last-id (atom 0)
         new-tag! (fn [prefix]
                    (prefixed-key prefix (str (swap! last-id inc))))
-        param-spec (fn [{pname :name ptype-name :type in :in required? :required pattern :pattern :as caramba}]
-                     (prn caramba)
-                     (let [value-spec (case ptype-name
-                                        "integer" `integer?
-                                        ;; TODO Implementation use pattern to restrict string values
-                                        "string" `string?
-                                        ;; FIXME Handle other types (type might not be specified)
-                                        nil `string?)
-                           form `(s/tuple #{~pname} #{~in} ~value-spec)]
+        param-spec (fn [{pname :name ptype-name :type in :in required? :required pattern :pattern
+                         :as description}]
+                     (let [form `(s/tuple #{~pname} #{~in} ~(value-spec description))]
                        [(keyword pname)
                         (if required?
                           form
