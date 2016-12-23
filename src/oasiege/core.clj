@@ -1,7 +1,7 @@
 (ns oasiege.core
   (:require [clojure.spec :as s]
-            [swagger.reader.json :as json]
-            [swagger.reader.yaml :as yaml]
+            [swagger.reader.yaml :as swagger-yaml]
+            [clj-json.core :as json]
             [clojure.spec.gen :as gen]
             [miner.strgen :as sg]
             swagger.spec
@@ -20,7 +20,7 @@
 (defn regexp-spec [pattern]
   (let [regexp (re-pattern pattern)]
     `(s/with-gen (s/and string? #(re-matches ~regexp %))
-      #(sg/string-generator ~regexp))))
+       #(sg/string-generator ~regexp))))
 
 
 (s/def ::structval (s/or
@@ -74,7 +74,7 @@
 
 (defn load-api [openapi-definition-str]
   (let [api (s/conform :swagger/definition
-              (yaml/parse-string openapi-definition-str))]
+              (swagger-yaml/parse-string openapi-definition-str))]
     (assert (clojure.string/starts-with? (:swagger api) "2."))
     api))
 
@@ -116,11 +116,12 @@
               (clojure.string/replace p
                 (str "{" param-name "}")
                 value)))
-    :body (assoc request :body value)))
+    :body (-> request
+            (assoc :body (json/generate-string value))
+            (update :headers assoc "Content-Type" "application/json; charset=utf-8"))))
 
 
 (defn prepare-request [base-path request]
-  ;; TODO use base path
   (-> (reduce embed-parameter
         (dissoc request :params)
         (:params request))
