@@ -127,10 +127,6 @@
     (update :path #(str base-path %))))
 
 
-;; --------------------------------------------------------
-;; Main
-
-
 (defn generate-calls [api call-spec sample-count]
   (let [generated-records (-> call-spec
                             s/gen
@@ -138,20 +134,3 @@
     (map (comp #(prepare-request (:basePath api) %)
            speced-to-map)
       generated-records)))
-
-
-(defn example-run []
-  (let [api (load-api (slurp "test/oasiege/data/hummus.yaml"))
-        rspec (request-spec api)]
-
-    (println "Generating calls from spec...")
-    (doseq [call (generate-calls api rspec 200)]
-      (prn call))
-
-    (println "\nMatching an unprepared call against a spec...")
-    (prn (s/conform rspec
-           (map-to-speced {:method :get
-                           :path "/quality-label/{key}"
-                           :params [{:name "key"
-                                     :in :path
-                                     :value "wGHi3LCS9Q8a3"}]})))))
