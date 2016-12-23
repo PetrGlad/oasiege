@@ -23,13 +23,22 @@
       #(sg/string-generator ~regexp))))
 
 
+(s/def ::structval (s/or
+                     :int integer?
+                     :str string?
+                     :bool boolean?
+                     :struct (s/map-of string? ::structval)
+                     :seq (s/every ::structval)))
+
+
 (defn value-spec [{type-name :type pattern :pattern schema :schema
                    :as desc}]
   (cond
-    pattern (regexp-spec pattern)
-    schema `string? ;;;; STUB ;;;; FIXME Support JSON-schemed values
     (= type-name "integer") `integer?
     (= type-name "string") `string?
+    pattern (regexp-spec pattern)
+    schema ::structval ;;;; TODO Take in account acual JSON schema (if present)
+    (= type-name "object") ::structval
     true (throw (ex-info "Cannot create spec for this value."
                   {:type ::error
                    :description desc}))))
@@ -37,7 +46,7 @@
 
 (defn request-spec [api]
   ;; It is possible to use s/def-impl do add apec definitions while avoiding macroses
-  ;; but then spec's explanation functions that show predicates' source
+  ;; but then spec's functions that show predicates' source (e.g. s/form, s/explain)
   ;; would not work correctly.
   ;; Explanation is not necessary for generation but helps with debugging.
   (let [last-id (atom 0)
@@ -100,7 +109,7 @@
 (defn embed-parameter [request {param-name :name
                                 value :value
                                 in :in}]
-  ;; Unsupported values :query :header :formData :cookie
+  ;; Unsupported locations :query :header :formData :cookie
   (case in
     :path (update request :path
             (fn [p]
@@ -139,7 +148,7 @@
     (doseq [call (generate-calls api rspec 200)]
       (prn call))
 
-    (println "Matching a call against a spec...")
+    (println "\nMatching an unprepared call against a spec...")
     (prn (s/conform rspec
            (map-to-speced {:method :get
                            :path "/quality-label/{key}"
